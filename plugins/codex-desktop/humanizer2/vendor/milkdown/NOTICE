@@ -1,0 +1,5 @@
+Milkdown / Crepe 7.23.0 (MIT)
+https://github.com/Milkdown/milkdown
+https://milkdown.dev/docs/guide/using-crepe
+
+Installed through npm and bundled locally for both hosts. No CDN is required. Crepe uses ProseMirror for continuous document editing, remark for Markdown serialization, KaTeX for math, and CodeMirror inside code/formula editing controls.

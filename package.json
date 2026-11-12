@@ -1,0 +1,50 @@
+{
+  "name": "humanizer-squared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Humanizer² — local document review and confirmed writing preferences",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "probe": "node scripts/probe-codex.ts",
+    "test": "node --test tests/*.test.ts",
+    "build": "node scripts/build.mjs && node scripts/build.mjs codex-cli",
+    "typecheck": "tsc",
+    "format": "prettier --write src tests scripts/build.mjs scripts/preview.mjs",
+    "build:codex-cli": "node scripts/build.mjs codex-cli"
+  },
+  "dependencies": {
+    "@milkdown/crepe": "7.23.0",
+    "@milkdown/kit": "7.23.0",
+    "diff": "9.0.0",
+    "katex": "0.19.1",
+    "mdast-util-from-markdown": "2.1.0",
+    "mdast-util-gfm": "3.1.0",
+    "micromark-extension-gfm": "3.0.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "react-markdown": "10.1.0",
+    "rehype-katex": "7.0.1",
+    "remark-frontmatter": "5.0.0",
+    "remark-gfm": "4.0.1",
+    "remark-math": "6.0.0",
+    "ws": "8.22.2"
+  },
+  "devDependencies": {
+    "@types/katex": "0.16.8",
+    "@types/node": "26.6.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/ws": "8.18.2",
+    "esbuild": "0.28.2",
+    "prettier": "3.9.10",
+    "typescript": "7.0.2"
+  },
+  "overrides": {
+    "katex": "$katex"
+  },
+  "author": "Wenshuai Liu",
+  "license": "MIT"
+}

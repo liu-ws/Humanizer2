@@ -1,0 +1,13 @@
+node_modules/
+.humanizer2/
+dist/
+
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Local tool/account settings are not part of the plugin.
+.codex/
+.aws/

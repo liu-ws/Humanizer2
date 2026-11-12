@@ -1,0 +1,17 @@
+{
+  "name": "humanizer2",
+  "version": "0.1.0",
+  "description": "Humanizer² document editing and confirmed writing preferences for Codex Desktop",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Humanizer²",
+    "shortDescription": "在原聊天中润色、审阅并学习个人表达偏好",
+    "developerName": "Wenshuai Liu",
+    "category": "Productivity",
+    "defaultPrompt": "打开 Humanizer² 写作工作台，绑定当前聊天。",
+    "logo": "./assets/logo.png",
+    "composerIcon": "./assets/logo.png",
+    "logoDark": "./assets/logo.png",
+    "composerIconDark": "./assets/logo.png"
+  }
+}

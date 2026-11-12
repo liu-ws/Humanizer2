@@ -1,0 +1,7 @@
+# Bundled output and third-party notices retain upstream formatting.
+plugins/**/web/app.js linguist-generated=true -whitespace
+plugins/**/web/app.css linguist-generated=true
+plugins/**/workbench.html linguist-generated=true -whitespace
+plugins/**/server.mjs linguist-generated=true
+plugins/**/hub.mjs linguist-generated=true
+plugins/**/THIRD_PARTY_NOTICES.txt linguist-generated=true -whitespace
