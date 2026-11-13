@@ -295,7 +295,7 @@ var startupDocumentSchema = schema({
   genre: { type: "string", maxLength: 120 },
   writingMode: { enum: ["general", "academic"] }
 });
-var resourceUri = "ui://humanizer2/workbench-v0.1.1.html";
+var resourceUri = "ui://humanizer2/workbench-v0.1.2.html";
 var toolDefinitions = [
   {
     name: "workbench_api",
@@ -455,7 +455,7 @@ async function health() {
     });
     const data = await r.json();
     if (!r.ok || data.protocol !== PROTOCOL) return false;
-    if (String(data.version || "0").localeCompare("0.1.1", void 0, {
+    if (String(data.version || "0").localeCompare("0.1.2", void 0, {
       numeric: true
     }) < 0) {
       if (Number.isInteger(data.pid) && data.pid > 1) {
@@ -491,11 +491,13 @@ async function ensureHub() {
 }
 var starting = null;
 async function forward(name, args) {
-  if (!starting)
-    starting = ensureHub().finally(() => {
-      starting = null;
-    });
-  await starting;
+  if (name === "open_bridge") {
+    if (!starting)
+      starting = ensureHub().finally(() => {
+        starting = null;
+      });
+    await starting;
+  } else if (starting) await starting;
   const cfg = config();
   const r = await fetch(`http://127.0.0.1:${cfg.port}/mcp`, {
     method: "POST",
@@ -529,7 +531,7 @@ lines.on("line", async (line) => {
           name: "humanizer2",
           title: "Humanizer\xB2",
           icons: appIcons,
-          version: "0.1.1"
+          version: "0.1.2"
         }
       };
     else if (m.method === "ping") data = {};
@@ -552,7 +554,7 @@ lines.on("line", async (line) => {
         if (m.params.name === "bridge_status" && !args.sessionId)
           args.sessionId = boundSession;
         data = result(
-          m.params.name === "workbench_api" ? (await ensureHub(), await workbenchApi(config(), args)) : await forward(m.params.name, args)
+          m.params.name === "workbench_api" ? await workbenchApi(config(), args) : await forward(m.params.name, args)
         );
         if (m.params.name === "open_bridge" && args.threadId) {
           boundSession = cli ? sessionKey(args.threadId, "codex-cli") : args.threadId;

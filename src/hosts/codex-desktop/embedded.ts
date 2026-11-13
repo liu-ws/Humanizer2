@@ -188,7 +188,7 @@ async function initialize() {
   initializing = true;
   try {
     const r = await rpc("ui/initialize", {
-      appInfo: { name: "humanizer2-workbench", version: "0.1.1" },
+      appInfo: { name: "humanizer2-workbench", version: "0.1.2" },
       appCapabilities: {},
       protocolVersion: "2026-01-26",
     });

@@ -3,7 +3,7 @@
 </p>
 <h1 align="center">Humanizer²</h1>
 <p align="center"><strong>A humanizer that learns to humanize.</strong></p>
-<p align="center"><a href="docs/README.zh-CN.md">中文</a> · Version <strong>0.1.1</strong></p>
+<p align="center"><a href="docs/README.zh-CN.md">中文</a> · Version <strong>0.1.2</strong></p>
 
 Many AI-written documents have poor readability, so we often encounter two problems when reading them:
 
@@ -105,7 +105,12 @@ vendor/                Bundled rules, fonts, notices, and licenses
 
 ## Data storage
 
-Data stays in `~/.local/share/humanizer2` by default. `workspace.sqlite` stores session registrations and shared preferences; `sessions/` stores each session's documents and requests. Set `HUMANIZER2_DATA_DIR` to isolate data. The service listens on `127.0.0.1:36678` and requires a local access token.
+Data stays in `~/.local/share/humanizer2` by default. `workspace.sqlite` stores session registrations and shared preferences; `sessions/` stores each session's documents and requests. Set `HUMANIZER2_DATA_DIR` to isolate data.
+
+## Service port
+The service listens on `127.0.0.1:36678` and requires a local access token.
+
+Disconnecting the last session shuts down the background service and releases its port. Saved documents and writing preferences remain on disk and are restored when you reopen Humanizer².
 
 ## Document rendering
 

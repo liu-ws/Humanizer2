@@ -3867,7 +3867,7 @@ async function readHostThreads(socketPath) {
       ws.once("close", () => reject(Error("Host disconnected")));
     });
     await request("initialize", {
-      clientInfo: { name: "humanizer2_lifecycle", version: "0.1.1" },
+      clientInfo: { name: "humanizer2_lifecycle", version: "0.1.2" },
       capabilities: { experimentalApi: false, requestAttestation: false }
     });
     ws.send(JSON.stringify({ method: "initialized" }));
@@ -14144,7 +14144,12 @@ function tool(name, args = {}) {
       throw Error("Unknown tool");
   }
 }
+var shuttingDown = false;
 var server = createServer(async (req, res) => {
+  if (shuttingDown) {
+    res.writeHead(503, { "Connection": "close" }).end();
+    return;
+  }
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "no-referrer");
@@ -14193,7 +14198,7 @@ var server = createServer(async (req, res) => {
       res.end(
         JSON.stringify({
           protocol: PROTOCOL,
-          version: "0.1.1",
+          version: "0.1.2",
           pid: process.pid
         })
       );
@@ -14219,7 +14224,15 @@ var server = createServer(async (req, res) => {
     }
     if (path2 === "/sessions/disconnect" && req.method === "POST") {
       workspace.engine(id);
-      res.end(JSON.stringify(workspace.disconnect(body.id)));
+      workspace.disconnect(body.id);
+      const sessions = workspace.sessions();
+      if (!sessions.length) {
+        res.setHeader("Connection", "close");
+        res.once("finish", () => {
+          if (!workspace.sessions().length) shutdown();
+        });
+      }
+      res.end(JSON.stringify({ ok: true, sessions }));
       return;
     }
     const engine = workspace.engine(id), store = engine.store;
@@ -14327,11 +14340,14 @@ await new Promise((resolve) => server.listen(port, "127.0.0.1", resolve));
 port = server.address().port;
 workspace.registry.prepare("UPDATE meta SET value=? WHERE key='port'").run(String(port));
 var stopLifecycle = startLifecycleSync(workspace);
-process.on(
-  "SIGTERM",
-  () => server.close(() => {
-    stopLifecycle();
+function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  stopLifecycle();
+  server.close(() => {
     workspace.close();
     process.exit(0);
-  })
-);
+  });
+  server.closeIdleConnections();
+}
+process.on("SIGTERM", shutdown);

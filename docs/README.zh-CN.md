@@ -3,7 +3,7 @@
 </p>
 <h1 align="center">Humanizer²</h1>
 <p align="center"><strong>A humanizer that learns to humanize.</strong></p>
-<p align="center"><a href="../README.md">English</a> · 版本 <strong>0.1.1</strong></p>
+<p align="center"><a href="../README.md">English</a> · 版本 <strong>0.1.2</strong></p>
 
 许多 AI 撰写的文档可读性很差，导致我们在阅读时经常遇到以下两种情况：
 
@@ -105,7 +105,13 @@ vendor/                内置规则、字体、声明和许可证
 
 ## 数据保存
 
-默认数据目录为 `~/.local/share/humanizer2`。`workspace.sqlite` 保存会话登记和共享经验，`sessions/` 保存各会话的文档与请求。可通过 `HUMANIZER2_DATA_DIR` 隔离数据。服务监听 `127.0.0.1:36678`，使用本地访问凭证。
+默认数据目录为 `~/.local/share/humanizer2`。`workspace.sqlite` 保存会话登记和共享经验，`sessions/` 保存各会话的文档与请求。可通过 `HUMANIZER2_DATA_DIR` 隔离数据。
+
+## 服务端口
+
+服务监听 `127.0.0.1:36678`，使用本地访问凭证。
+
+最后一个会话断开后，后台服务会自动退出并释放端口。已保存的文档和表达经验保留在本地，重新打开 Humanizer² 后可继续使用。
 
 ## 文档渲染
 

@@ -50,7 +50,7 @@ async function health() {
     const data = await r.json();
     if (!r.ok || data.protocol !== PROTOCOL) return false;
     if (
-      String(data.version || "0").localeCompare("0.1.1", undefined, {
+      String(data.version || "0").localeCompare("0.1.2", undefined, {
         numeric: true,
       }) < 0
     ) {
@@ -86,11 +86,15 @@ async function ensureHub() {
 }
 let starting: Promise<void> | null = null;
 async function forward(name: string, args: any) {
-  if (!starting)
-    starting = ensureHub().finally(() => {
-      starting = null;
-    });
-  await starting;
+  // Background polls and stale workbench pages must not revive an idle hub.
+  // Only an explicit open reconnects the user and starts the service.
+  if (name === "open_bridge") {
+    if (!starting)
+      starting = ensureHub().finally(() => {
+        starting = null;
+      });
+    await starting;
+  } else if (starting) await starting;
   const cfg = config();
   const r = await fetch(`http://127.0.0.1:${cfg.port}/mcp`, {
     method: "POST",
@@ -124,7 +128,7 @@ lines.on("line", async (line) => {
           name: "humanizer2",
           title: "Humanizer²",
           icons: appIcons,
-          version: "0.1.1",
+          version: "0.1.2",
         },
       };
     else if (m.method === "ping") data = {};
@@ -148,7 +152,7 @@ lines.on("line", async (line) => {
           args.sessionId = boundSession;
         data = result(
           m.params.name === "workbench_api"
-            ? (await ensureHub(), await workbenchApi(config(), args))
+            ? await workbenchApi(config(), args)
             : await forward(m.params.name, args),
         );
         if (m.params.name === "open_bridge" && args.threadId) {

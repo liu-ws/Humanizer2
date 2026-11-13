@@ -96,7 +96,12 @@ function tool(name: string, args: any = {}) {
       throw Error("Unknown tool");
   }
 }
+let shuttingDown = false;
 const server = createServer(async (req, res) => {
+  if (shuttingDown) {
+    res.writeHead(503, { "Connection": "close" }).end();
+    return;
+  }
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "no-referrer");
@@ -159,7 +164,7 @@ const server = createServer(async (req, res) => {
       res.end(
         JSON.stringify({
           protocol: PROTOCOL,
-          version: "0.1.1",
+          version: "0.1.2",
           pid: process.pid,
         }),
       );
@@ -188,7 +193,16 @@ const server = createServer(async (req, res) => {
     }
     if (path === "/sessions/disconnect" && req.method === "POST") {
       workspace.engine(id);
-      res.end(JSON.stringify(workspace.disconnect(body.id)));
+      workspace.disconnect(body.id);
+      const sessions = workspace.sessions();
+      if (!sessions.length) {
+        // Flush the final disconnect response before closing the listener.
+        res.setHeader("Connection", "close");
+        res.once("finish", () => {
+          if (!workspace.sessions().length) shutdown();
+        });
+      }
+      res.end(JSON.stringify({ ok: true, sessions }));
       return;
     }
     const engine = workspace.engine(id),
@@ -301,11 +315,15 @@ workspace.registry
   .prepare("UPDATE meta SET value=? WHERE key='port'")
   .run(String(port));
 const stopLifecycle = startLifecycleSync(workspace);
-// The shared workbench survives closure of an individual MCP session.
-process.on("SIGTERM", () =>
+// Closing one MCP connection is not a session disconnect. Keep other sessions alive.
+function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  stopLifecycle();
   server.close(() => {
-    stopLifecycle();
     workspace.close();
     process.exit(0);
-  }),
-);
+  });
+  server.closeIdleConnections();
+}
+process.on("SIGTERM", shutdown);

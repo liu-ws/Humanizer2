@@ -756,3 +756,60 @@ test("UTF-8 chunk boundaries preserve protected Markdown through HTTP and MCP re
     assert.equal(d.units[0].text, polished);
   }
 });
+
+for (const cli of [false, true])
+  test(`${cli ? "CLI" : "desktop"} last disconnect releases the port, stays stopped under polls, and preserves documents`, async (t) => {
+    const f = await fixture(t, cli);
+    const opened = (await f.tool("open_bridge", { threadId })).structuredContent;
+    const sessionId = opened.sessionId;
+    const peerId = randomUUID();
+    await f.api("/mcp", { name: "open_bridge", args: { threadId: peerId } });
+    const source = "Saved original.\n";
+    const d = await (await f.api("/documents", { name: "saved.md", format: "md", text: source })).json();
+    await f.api("/edit", { documentId: d.id, unitId: d.units[0].id, revision: 0, text: "Saved revision.\n" });
+    const first = await (await f.api("/sessions/disconnect", { id: peerId })).json();
+    assert.equal(first.sessions.length, 1);
+    assert.equal((await f.api("/health")).status, 200);
+    const final = cli
+      ? await (await f.api("/sessions/disconnect", { id: sessionId })).json()
+      : (await f.tool("workbench_api", {
+          bridgeSessionId: sessionId, bridgeKey: opened.bridgeKey,
+          sessionId, path: "/sessions/disconnect", body: { id: sessionId },
+        })).structuredContent;
+    assert.equal(final.ok, true);
+    assert.deepEqual(final.sessions, []);
+    let stopped = false;
+    for (let i = 0; i < 100; i++) {
+      try { await f.api("/health"); }
+      catch { stopped = true; break; }
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    assert.ok(stopped, "last disconnect must stop the listener");
+    // Bind the same address to prove that the port has actually been released.
+    const { createServer } = await import("node:net");
+    const probe = createServer();
+    await new Promise<void>((resolve, reject) => {
+      probe.once("error", reject);
+      probe.listen(Number(f.url.port), "127.0.0.1", resolve);
+    });
+    await new Promise<void>((resolve) => probe.close(() => resolve()));
+    await f.tool("bridge_status", { sessionId });
+    if (!cli) {
+      await f.tool("bridge_poll");
+      await f.tool("workbench_api", {
+        bridgeSessionId: sessionId, bridgeKey: opened.bridgeKey,
+        sessionId, path: "/sessions",
+      });
+    }
+    // Let the CLI's automatic poll run too; it must not restart the hub.
+    await new Promise((r) => setTimeout(r, 1100));
+    await assert.rejects(f.api("/health"));
+    const reopened = await f.tool("open_bridge", { threadId });
+    assert.ok(!reopened.isError, JSON.stringify(reopened));
+    const newPid = (await (await f.api("/health")).json()).pid;
+    t.after(() => { try { process.kill(newPid, "SIGTERM"); } catch {} });
+    const restored = await (await f.api("/documents/" + d.id)).json();
+    assert.equal(restored.original, source);
+    assert.equal(restored.units[0].text, "Saved revision.\n");
+    assert.equal(restored.revision, 1);
+  });

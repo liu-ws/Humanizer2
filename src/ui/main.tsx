@@ -740,7 +740,7 @@ function App() {
                 setTabMenu(null);
                 void run(async () => {
                   await save();
-                  await api(`/${item.kind}/disconnect`, { id: item.id });
+                  const disconnected = await api(`/${item.kind}/disconnect`, { id: item.id });
                   if (
                     item.kind === "documents" &&
                     docRef.current?.id === item.id
@@ -754,7 +754,8 @@ function App() {
                     item.kind === "sessions" &&
                     activeSessionId === item.id
                   ) {
-                    const remaining = (await api("/sessions")).sessions;
+                    const remaining = disconnected.sessions;
+                    setState((s: any) => ({ ...s, sessions: remaining }));
                     await switchSession(remaining[0]?.id || "");
                   }
                   setNotice(
