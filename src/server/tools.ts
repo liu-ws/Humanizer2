@@ -27,7 +27,7 @@ const startupDocumentSchema = schema({
   genre: { type: "string", maxLength: 120 },
   writingMode: { enum: ["general", "academic"] },
 });
-export const resourceUri = "ui://humanizer2/workbench-v0.1.0.html";
+export const resourceUri = "ui://humanizer2/workbench-v0.1.1.html";
 export const toolDefinitions = [
   {
     name: "workbench_api",

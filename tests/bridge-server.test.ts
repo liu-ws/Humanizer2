@@ -103,7 +103,7 @@ appendFileSync(${JSON.stringify(queueLog)}, JSON.stringify(process.argv.slice(2)
       body: body ? JSON.stringify(body) : undefined,
     });
   hubPid = (await (await api("/health")).json()).pid;
-  return { rpc, tool, api, url, child, dir, queueLog };
+  return { rpc, tool, api, url, child, dir, queueLog, headers };
 }
 
 test("browser queue → MCP claim → reply → browser state (protocol-only, no real host)", async (t) => {
@@ -697,4 +697,62 @@ for (const cli of [false, true]) test(`${cli ? "CLI" : "desktop"} document quest
   await f.api('/questions',{id:cancelled,documentId:d.id,unitId:d.units[0].id,revision:d.revision,question:'cancelled'});
   await f.api('/requests/cancel',{id:cancelled});
   assert.equal((await f.tool('reply_to_browser',{requestId:cancelled,answer:'late'})).isError,true);
+});
+
+test("UTF-8 chunk boundaries preserve protected Markdown through HTTP and MCP replies", async (t) => {
+  const f = await fixture(t);
+  const original =
+    "Original prose.\n\n```text\n" + "中文🧪\n".repeat(5000) + "```\n";
+  for (const transport of ["http", "mcp"]) {
+    const source = transport + "\n\n" + original;
+    const polished = source.replace("Original prose.", "Revised prose.");
+    const opened = (
+      await f.tool("open_bridge", {
+        threadId,
+        document: { name: `utf8-${transport}.md`, text: source },
+      })
+    ).structuredContent;
+    const requestId = opened.startup.requestId;
+    await f.tool("bridge_poll");
+    const context = (await f.tool("read_request_context", { requestId }))
+      .structuredContent;
+    const args = {
+      requestId,
+      answer: JSON.stringify({
+        units: [{ id: context.units[0].id, text: polished }],
+      }),
+    };
+    if (transport === "http") {
+      const bytes = Buffer.from(
+        JSON.stringify({ name: "reply_to_browser", args }),
+      );
+      const split = bytes.indexOf(Buffer.from("中")) + 1;
+      const body = new ReadableStream({
+        async start(controller) {
+          controller.enqueue(bytes.subarray(0, split));
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          controller.enqueue(bytes.subarray(split));
+          controller.close();
+        },
+      });
+      const response = await fetch(f.url.origin + "/mcp", {
+        method: "POST",
+        headers: f.headers,
+        body,
+        duplex: "half",
+      } as any);
+      const result = await response.json();
+      assert.equal(response.status, 200, JSON.stringify(result));
+      assert.equal(result.request.applied, true);
+    } else {
+      const result = await f.tool("reply_to_browser", args);
+      assert.ok(!result.isError, JSON.stringify(result));
+      assert.equal(result.structuredContent.request.applied, true);
+    }
+    const d = await (
+      await f.api("/documents/" + opened.startup.documentId)
+    ).json();
+    assert.equal(d.original, source);
+    assert.equal(d.units[0].text, polished);
+  }
 });

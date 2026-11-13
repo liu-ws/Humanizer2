@@ -3748,6 +3748,20 @@ var require_websocket_server = __commonJS({
   }
 });
 
+// src/server/request-body.ts
+import { StringDecoder } from "node:string_decoder";
+async function readJsonBody(chunks, maxLength = 2e6) {
+  const decoder = new StringDecoder("utf8");
+  let text4 = "";
+  for await (const chunk of chunks) {
+    text4 += decoder.write(Buffer.from(chunk));
+    if (text4.length > maxLength) throw Error("\u8BF7\u6C42\u8FC7\u5927");
+  }
+  text4 += decoder.end();
+  if (text4.length > maxLength) throw Error("\u8BF7\u6C42\u8FC7\u5927");
+  return JSON.parse(text4 || "{}");
+}
+
 // src/server/startup-document.ts
 import { randomUUID } from "node:crypto";
 function validateStartupDocument(input) {
@@ -3853,7 +3867,7 @@ async function readHostThreads(socketPath) {
       ws.once("close", () => reject(Error("Host disconnected")));
     });
     await request("initialize", {
-      clientInfo: { name: "humanizer2_lifecycle", version: "0.1.0" },
+      clientInfo: { name: "humanizer2_lifecycle", version: "0.1.1" },
       capabilities: { experimentalApi: false, requestAttestation: false }
     });
     ws.send(JSON.stringify({ method: "initialized" }));
@@ -14173,18 +14187,13 @@ var server = createServer(async (req, res) => {
   try {
     let body = {};
     if (req.method === "POST") {
-      let text4 = "";
-      for await (const chunk of req) {
-        text4 += chunk;
-        if (text4.length > 2e6) throw Error("\u8BF7\u6C42\u8FC7\u5927");
-      }
-      body = JSON.parse(text4 || "{}");
+      body = await readJsonBody(req);
     }
     if (url.pathname === "/health") {
       res.end(
         JSON.stringify({
           protocol: PROTOCOL,
-          version: "0.1.0",
+          version: "0.1.1",
           pid: process.pid
         })
       );

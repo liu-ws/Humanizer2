@@ -1,6 +1,6 @@
 {
   "name": "humanizer2-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Humanizer² document editing and confirmed writing preferences for Codex CLI",
   "mcpServers": "./.mcp.json",
   "interface": {

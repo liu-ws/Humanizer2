@@ -50,7 +50,7 @@ async function health() {
     const data = await r.json();
     if (!r.ok || data.protocol !== PROTOCOL) return false;
     if (
-      String(data.version || "0").localeCompare("0.1.0", undefined, {
+      String(data.version || "0").localeCompare("0.1.1", undefined, {
         numeric: true,
       }) < 0
     ) {
@@ -124,7 +124,7 @@ lines.on("line", async (line) => {
           name: "humanizer2",
           title: "Humanizer²",
           icons: appIcons,
-          version: "0.1.0",
+          version: "0.1.1",
         },
       };
     else if (m.method === "ping") data = {};

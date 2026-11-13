@@ -295,7 +295,7 @@ var startupDocumentSchema = schema({
   genre: { type: "string", maxLength: 120 },
   writingMode: { enum: ["general", "academic"] }
 });
-var resourceUri = "ui://humanizer2/workbench-v0.1.0.html";
+var resourceUri = "ui://humanizer2/workbench-v0.1.1.html";
 var toolDefinitions = [
   {
     name: "workbench_api",
@@ -455,7 +455,7 @@ async function health() {
     });
     const data = await r.json();
     if (!r.ok || data.protocol !== PROTOCOL) return false;
-    if (String(data.version || "0").localeCompare("0.1.0", void 0, {
+    if (String(data.version || "0").localeCompare("0.1.1", void 0, {
       numeric: true
     }) < 0) {
       if (Number.isInteger(data.pid) && data.pid > 1) {
@@ -529,7 +529,7 @@ lines.on("line", async (line) => {
           name: "humanizer2",
           title: "Humanizer\xB2",
           icons: appIcons,
-          version: "0.1.0"
+          version: "0.1.1"
         }
       };
     else if (m.method === "ping") data = {};

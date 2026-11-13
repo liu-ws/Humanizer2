@@ -1,3 +1,4 @@
+import { readJsonBody } from "./request-body.ts";
 import { importStartupDocuments, startupInputs } from "./startup-document.ts";
 import { startLifecycleSync } from "../hosts/codex-desktop/lifecycle.ts";
 import { createServer } from "node:http";
@@ -152,18 +153,13 @@ const server = createServer(async (req, res) => {
   try {
     let body: any = {};
     if (req.method === "POST") {
-      let text = "";
-      for await (const chunk of req) {
-        text += chunk;
-        if (text.length > 2000000) throw Error("请求过大");
-      }
-      body = JSON.parse(text || "{}");
+      body = await readJsonBody(req);
     }
     if (url.pathname === "/health") {
       res.end(
         JSON.stringify({
           protocol: PROTOCOL,
-          version: "0.1.0",
+          version: "0.1.1",
           pid: process.pid,
         }),
       );

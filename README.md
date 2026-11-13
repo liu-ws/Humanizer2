@@ -3,7 +3,7 @@
 </p>
 <h1 align="center">Humanizer²</h1>
 <p align="center"><strong>A humanizer that learns to humanize.</strong></p>
-<p align="center"><a href="docs/README.zh-CN.md">中文</a> · Version <strong>0.1.0</strong></p>
+<p align="center"><a href="docs/README.zh-CN.md">中文</a> · Version <strong>0.1.1</strong></p>
 
 Many AI-written documents have poor readability, so we often encounter two problems when reading them:
 

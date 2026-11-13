@@ -1,3 +1,4 @@
+import { polishNotices, canDismissPolishNotice } from "./polish-notices.ts";
 import logo from "../../assets/logo.svg";
 import { Icon } from "./Icon.tsx";
 import { useReorder } from "./useReorder.ts";
@@ -170,7 +171,8 @@ function App() {
     (r: Request) => r.documentId === doc?.id,
   );
   const relevant = requests.filter((r) => ["ask", "rewrite"].includes(r.kind));
-  const initialRequests = requests.filter((r) => r.kind === "polish");
+  const [dismissedPolishNotices, setDismissedPolishNotices] = useState<Set<string>>(() => new Set());
+  const initialRequests = polishNotices(requests, dismissedPolishNotices);
   const refresh = async () => {
     try {
       const expectedSession = activeSessionId;
@@ -1057,6 +1059,12 @@ function App() {
                     <div className="banner" key={r.id}>
                       {t(statusLabel[r.status])}
                       {r.error && t(r.error)}
+                      {canDismissPolishNotice(r) && (
+                        <button
+                          aria-label={t("关闭提示", "Dismiss notice")}
+                          onClick={() => setDismissedPolishNotices((ids) => new Set([...ids, r.id]))}
+                        >×</button>
+                      )}
                     </div>
                   ))}
                 {unit ? (
