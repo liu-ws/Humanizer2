@@ -50,7 +50,7 @@ export async function readHostThreads(
       ws.once("close", () => reject(Error("Host disconnected")));
     });
     await request("initialize", {
-      clientInfo: { name: "humanizer2_lifecycle", version: "0.1.2" },
+      clientInfo: { name: "humanizer2_lifecycle", version: "0.1.3" },
       capabilities: { experimentalApi: false, requestAttestation: false },
     });
     ws.send(JSON.stringify({ method: "initialized" }));

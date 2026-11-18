@@ -4,7 +4,7 @@ import { Icon } from "./Icon.tsx";
 import { useReorder } from "./useReorder.ts";
 import { LiveEditor, AutoTextarea } from "./LiveEditor.tsx";
 import { Markdown } from "./Markdown.tsx";
-import React, { useState, useEffect, useRef } from "react";
+import React, { memo, useState, useEffect, useMemo, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { diffWordsWithSpace } from "diff";
 import type { Document, Request, Experience } from "../core/store.ts";
@@ -55,7 +55,12 @@ const startupDocumentId = host?.documentId || fragment.get("document");
 if (activeSessionId && startupDocumentId)
   localStorage.setItem(docKey(), startupDocumentId);
 async function api(path: string, body?: any) {
-  if (host) return host.api(path, body, activeSessionId);
+  if (host) {
+    const session = path === "/sessions" && !activeSessionId
+      ? host.sessionId
+      : activeSessionId;
+    return host.api(path, body, session);
+  }
   const r = await fetch(path, {
     method: body === undefined ? "GET" : "POST",
     headers: {
@@ -92,11 +97,30 @@ type Draft = {
   revision: number;
 };
 const draftKey = (d: string, u: string) => "h2-draft:" + d + ":" + u;
+const ReviewDiff = memo(function ReviewDiff({
+  baseline,
+  text,
+}: {
+  baseline: string;
+  text: string;
+}) {
+  return diffWordsWithSpace(baseline, text).map((part, i) =>
+    part.added ? (
+      <ins key={i}>{part.value}</ins>
+    ) : part.removed ? (
+      <del key={i}>{part.value}</del>
+    ) : (
+      <span key={i}>{part.value}</span>
+    ),
+  );
+});
 function App() {
   const [locale, setLocale] = useState(
-      localStorage.getItem("h2-locale") || "zh",
+      () => localStorage.getItem("h2-locale") || "zh",
     ),
-    [theme, setTheme] = useState(localStorage.getItem("h2-theme") || "dark");
+    [theme, setTheme] = useState(
+      () => localStorage.getItem("h2-theme") || "dark",
+    );
   setUiLocale(locale);
   const [dirtyDocuments, setDirtyDocuments] = useState<string[]>(() => {
     try {
@@ -167,41 +191,63 @@ function App() {
   unitRef.current = unitId;
   docRef.current = doc;
   const unit = doc?.units.find((u) => u.id === unitId);
-  const requests: Request[] = state.requests.filter(
-    (r: Request) => r.documentId === doc?.id,
+  const requests = useMemo(
+    () => (state.requests as Request[]).filter((r) => r.documentId === doc?.id),
+    [state.requests, doc?.id],
   );
-  const relevant = requests.filter((r) => ["ask", "rewrite"].includes(r.kind));
+  const relevant = useMemo(
+    () => requests.filter((r) => ["ask", "rewrite"].includes(r.kind)),
+    [requests],
+  );
   const [dismissedPolishNotices, setDismissedPolishNotices] = useState<Set<string>>(() => new Set());
-  const initialRequests = polishNotices(requests, dismissedPolishNotices);
-  const refresh = async () => {
+  const initialRequests = useMemo(
+    () => polishNotices(requests, dismissedPolishNotices),
+    [requests, dismissedPolishNotices],
+  );
+  const activeRefresh = useRef<{ session: string } | null>(null);
+  const refresh = async (background = false) => {
+    const expectedSession = activeSessionId;
+    if (background && activeRefresh.current?.session === expectedSession) return;
+    const request = { session: expectedSession };
+    activeRefresh.current = request;
+    const isCurrent = () =>
+      expectedSession === activeSessionId && activeRefresh.current === request;
     try {
-      const expectedSession = activeSessionId;
       const expectedNavigation = navigationSequence.current;
-      const expectedDocument = docRef.current?.id;
-      const sessions = (await api("/sessions")).sessions;
-      if (expectedSession !== activeSessionId) return;
+      const current = docRef.current;
+      const nextState = expectedSession
+        ? await api("/state").catch(() => null)
+        : null;
+      if (!isCurrent()) return;
+      const sessions = nextState?.sessions ?? (await api("/sessions")).sessions;
+      if (!isCurrent()) return;
       if (
-        !activeSessionId ||
-        !sessions.some((x: any) => x.id === activeSessionId)
+        !expectedSession ||
+        !sessions.some((x: any) => x.id === expectedSession)
       ) {
         setState((prev: any) => ({ ...prev, sessions }));
-        if (sessions.length) {
-          activeSessionId = sessions[0].id;
-          localStorage.setItem("h2-session", activeSessionId);
-          setSessionId(activeSessionId);
-        } else setRestoring(false);
+        const next = sessions[0]?.id || "";
+        if (next !== expectedSession) await switchSession(next);
+        if (!next) {
+          setOnline(false);
+          setRestoring(false);
+        }
         return;
       }
-      const nextState = await api("/state");
-      if (expectedSession !== activeSessionId) return;
+      if (!nextState) {
+        setOnline(false);
+        return;
+      }
       setState(nextState);
-      const current = docRef.current;
+      setOnline(true);
       if (
-        current &&
-        current.id === expectedDocument &&
-        expectedNavigation === navigationSequence.current &&
-        !nextState.documents.some((d: any) => d.id === current.id)
-      ) {
+        !current ||
+        current !== docRef.current ||
+        expectedNavigation !== navigationSequence.current
+      )
+        return;
+      const listed = nextState.documents.find((d: any) => d.id === current.id);
+      if (!listed) {
         localStorage.removeItem(docKey());
         docRef.current = null;
         draft.current = null;
@@ -209,20 +255,17 @@ function App() {
         return;
       }
       if (
-        current &&
         !draft.current &&
         !savePromise.current &&
-        nextState.documents.some(
-          (d: any) => d.id === current.id && d.revision !== current.revision,
-        )
+        listed.revision !== current.revision
       ) {
         const updated = await api("/documents/" + current.id);
         if (
-          expectedSession === activeSessionId &&
+          isCurrent() &&
           expectedNavigation === navigationSequence.current &&
           !draft.current &&
           !savePromise.current &&
-          docRef.current?.id === current.id
+          docRef.current === current
         ) {
           const currentUnit = updated.units.find(
             (u: any) => u.id === unitRef.current,
@@ -237,14 +280,15 @@ function App() {
           } else showDocument(updated);
         }
       }
-      setOnline(true);
     } catch {
-      setOnline(false);
+      if (isCurrent()) setOnline(false);
+    } finally {
+      if (activeRefresh.current === request) activeRefresh.current = null;
     }
   };
   useEffect(() => {
-    void refresh();
-    const id = setInterval(() => void refresh(), 2000);
+    void refresh(true);
+    const id = setInterval(() => void refresh(true), 2000);
     return () => clearInterval(id);
   }, [sessionId]);
   function showDocument(d: Document, id?: string) {
@@ -1114,18 +1158,10 @@ function App() {
                           className="diff"
                           aria-label={t("本轮修改", "Current changes")}
                         >
-                          {diffWordsWithSpace(
-                            unit.baseline ?? unit.text,
-                            unit.text,
-                          ).map((p, i) =>
-                            p.added ? (
-                              <ins key={i}>{p.value}</ins>
-                            ) : p.removed ? (
-                              <del key={i}>{p.value}</del>
-                            ) : (
-                              <span key={i}>{p.value}</span>
-                            ),
-                          )}
+                          <ReviewDiff
+                            baseline={unit.baseline ?? unit.text}
+                            text={unit.text}
+                          />
                         </div>
                         <button
                           className="text-button"

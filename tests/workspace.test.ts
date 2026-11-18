@@ -103,6 +103,17 @@ test("session and document tab order is persisted and rejects missing targets", 
     reopened.orderedDocuments().map((d) => d.id),
     [second.id, first.id],
   );
+  reopened.detachDocument(second.id);
+  reopened.edit(first.id, first.units[0].id, "新内容", 0);
+  assert.deepEqual(a.store.documentLists(), {
+    history: [
+      { id: second.id, name: second.name, stage: "imported" },
+      { id: first.id, name: first.name, stage: "reviewing" },
+    ],
+    documents: [
+      { id: first.id, name: first.name, stage: "reviewing", revision: 1 },
+    ],
+  });
   reopened.close();
   assert.throws(() => w.reorderSessions(A, "missing"));
   assert.throws(() => a.store.reorderDocuments(first.id, "missing"));

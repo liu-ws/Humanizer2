@@ -1,6 +1,6 @@
 {
   "name": "humanizer-squared",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "type": "module",
   "description": "Humanizer² — local document review and confirmed writing preferences",
@@ -23,6 +23,7 @@
     "mdast-util-from-markdown": "2.1.0",
     "mdast-util-gfm": "3.1.0",
     "micromark-extension-gfm": "3.0.0",
+    "micromark-util-decode-string": "2.0.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "react-markdown": "10.1.0",

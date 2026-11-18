@@ -3867,7 +3867,7 @@ async function readHostThreads(socketPath) {
       ws.once("close", () => reject(Error("Host disconnected")));
     });
     await request("initialize", {
-      clientInfo: { name: "humanizer2_lifecycle", version: "0.1.2" },
+      clientInfo: { name: "humanizer2_lifecycle", version: "0.1.3" },
       capabilities: { experimentalApi: false, requestAttestation: false }
     });
     ws.send(JSON.stringify({ method: "initialized" }));
@@ -13210,6 +13210,8 @@ function validateHumanEdit(after) {
 }
 
 // src/core/store.ts
+var bridgeRequestsFilter = `json_extract(value, '$.status') IN ('queued', 'dispatching')
+  OR (json_extract(value, '$.kind') = 'sync' AND json_extract(value, '$.status') IN ('sent', 'uncertain'))`;
 var Store = class {
   db;
   shared = false;
@@ -13219,7 +13221,11 @@ var Store = class {
  CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS documents(id TEXT PRIMARY KEY,value TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS experiences(id TEXT PRIMARY KEY,value TEXT NOT NULL);
- CREATE TABLE IF NOT EXISTS requests(id TEXT PRIMARY KEY,value TEXT NOT NULL);`);
+ CREATE TABLE IF NOT EXISTS requests(id TEXT PRIMARY KEY,value TEXT NOT NULL);
+ CREATE INDEX IF NOT EXISTS requests_bridge ON requests(id) WHERE ${bridgeRequestsFilter};
+ CREATE INDEX IF NOT EXISTS documents_summary ON documents(
+   id, json_extract(value, '$.name'), json_extract(value, '$.stage'), json_extract(value, '$.revision')
+ );`);
     if (sharedPath) {
       this.db.prepare("ATTACH DATABASE ? AS shared").run(sharedPath);
       this.db.exec(
@@ -13238,6 +13244,12 @@ var Store = class {
   }
   all(table) {
     return this.db.prepare(`SELECT value FROM ${this.table(table)}`).all().map((x) => JSON.parse(x.value));
+  }
+  bridgeRequests() {
+    return this.db.prepare(`
+        SELECT value FROM requests INDEXED BY requests_bridge
+        WHERE ${bridgeRequestsFilter} ORDER BY rowid
+      `).all().map((row) => JSON.parse(row.value));
   }
   get(table, id) {
     const row = this.db.prepare(`SELECT value FROM ${this.table(table)} WHERE id=?`).get(id);
@@ -13314,6 +13326,28 @@ var Store = class {
   document(id) {
     const d = this.get("documents", id);
     return d;
+  }
+  documentName(id) {
+    const row = this.db.prepare(`
+        SELECT json_extract(value, '$.name') AS name
+        FROM documents INDEXED BY documents_summary WHERE id=?
+      `).get(id);
+    if (!row) throw Error("\u8BB0\u5F55\u4E0D\u5B58\u5728");
+    return row.name;
+  }
+  documentLists() {
+    const rows = this.db.prepare(`
+      SELECT d.id, json_extract(d.value, '$.name') AS name,
+        json_extract(d.value, '$.stage') AS stage, json_extract(d.value, '$.revision') AS revision,
+        m.value IS 'true' AS closed
+      FROM documents AS d INDEXED BY documents_summary
+      LEFT JOIN meta AS m ON m.key = 'closed:' || d.id ORDER BY d.rowid
+    `).all();
+    const documents = ordered(rows, this.meta("document-order"));
+    return {
+      history: documents.map(({ id, name, stage }) => ({ id, name, stage })),
+      documents: documents.filter((d) => !d.closed).map(({ closed, ...d }) => d)
+    };
   }
   polished(d) {
     return renderPolished(d);
@@ -13510,19 +13544,22 @@ var Engine = class {
   state() {
     return {
       threadId: this.store.meta("threadId") || null,
-      bridge: {
-        connected: !this.paused && Date.now() - this.lastSeen < 15e3,
-        lastSeen: this.lastSeen,
-        paused: this.paused,
-        capabilities: this.capabilities
-      },
+      bridge: this.bridgeStatus(),
       requests: this.store.all("requests").map((r) => this.notification(r))
+    };
+  }
+  bridgeStatus() {
+    return {
+      connected: !this.paused && Date.now() - this.lastSeen < 15e3,
+      lastSeen: this.lastSeen,
+      paused: this.paused,
+      capabilities: this.capabilities
     };
   }
   notification(r) {
     return {
       ...r,
-      documentName: r.documentId ? this.store.document(r.documentId).name : void 0
+      documentName: r.documentId ? this.store.documentName(r.documentId) : void 0
     };
   }
   submit(input) {
@@ -13632,11 +13669,12 @@ var Engine = class {
     });
     return { queued: [r.id] };
   }
-  poll(capabilities) {
+  poll(capabilities, compact = false) {
     this.lastSeen = Date.now();
     if (capabilities) this.capabilities = capabilities;
     return this.store.transaction(() => {
-      for (const r of this.store.all("requests")) {
+      const requests = this.store.bridgeRequests();
+      for (const r of requests) {
         if (r.status === "dispatching" && Date.now() - (r.dispatchedAt || 0) > 6e4) {
           r.status = "uncertain";
           r.error = "\u53D1\u9001\u786E\u8BA4\u8D85\u65F6\uFF1B\u4E0D\u4F1A\u81EA\u52A8\u91CD\u590D\u53D1\u9001";
@@ -13644,20 +13682,21 @@ var Engine = class {
         }
       }
       let next;
-      if (!this.paused)
-        next = this.store.all("requests").find(
-          (r) => r.status === "queued" && (!["sync"].includes(r.kind) || !this.store.all("requests").some(
-            (other) => other.id !== r.id && other.documentId === r.documentId && ["sync"].includes(other.kind) && ["dispatching", "sent", "uncertain"].includes(
-              other.status
-            )
-          ))
+      if (!this.paused) {
+        const busySyncDocuments = new Set(
+          requests.filter((r) => r.kind === "sync" && r.status !== "queued").map((r) => r.documentId)
         );
+        next = requests.find(
+          (r) => r.status === "queued" && (r.kind !== "sync" || !busySyncDocuments.has(r.documentId))
+        );
+      }
       if (next) {
         next.status = "dispatching";
         next.dispatchedAt = Date.now();
         this.store.put("requests", next);
       }
-      return { ...this.state(), next: next ? this.notification(next) : null };
+      const notification = next ? this.notification(next) : null;
+      return compact ? { next: notification } : { ...this.state(), next: notification };
     });
   }
   delivery(id, status, error) {
@@ -13965,7 +14004,7 @@ var Workspace = class {
       this.registry.prepare("SELECT value FROM meta WHERE key='session-order'").get()?.value
     ).filter((s) => !this.isDisconnected(s.id)).map((s) => ({
       ...s,
-      connected: this.engines.get(s.id)?.state().bridge.connected || false
+      connected: this.engines.get(s.id)?.bridgeStatus().connected || false
     }));
   }
   isDisconnected(id) {
@@ -14111,7 +14150,7 @@ function tool(name, args = {}) {
       workspace.verifyBridge(args.sessionId, args.bridgeKey);
       if (workspace.isDisconnected(args.sessionId))
         return { next: null, disconnected: true };
-      return workspace.engine(args.sessionId).poll(args.capabilities);
+      return workspace.engine(args.sessionId).poll(args.capabilities, args.compact === true);
     case "bridge_delivery":
       workspace.verifyBridge(args.sessionId, args.bridgeKey);
       return {
@@ -14198,7 +14237,7 @@ var server = createServer(async (req, res) => {
       res.end(
         JSON.stringify({
           protocol: PROTOCOL,
-          version: "0.1.2",
+          version: "0.1.3",
           pid: process.pid
         })
       );
@@ -14240,13 +14279,7 @@ var server = createServer(async (req, res) => {
       data = {
         ...engine.state(),
         sessions: workspace.sessions(),
-        history: store.orderedDocuments().map((d) => ({ id: d.id, name: d.name, stage: d.stage })),
-        documents: store.openDocuments().map((d) => ({
-          id: d.id,
-          name: d.name,
-          stage: d.stage,
-          revision: d.revision
-        })),
+        ...store.documentLists(),
         experiences: store.experiences()
       };
     else if (path2 === "/preferences/sync" && req.method === "POST")

@@ -97,8 +97,15 @@ if (host === "codex-desktop") {
     });
   // Load bundled bytes directly: CSS data: font URLs are not reliable in the host sandbox.
   const fontBootstrap = `window.h2FontReady=(async()=>{
+ function decodeFont(data) {
+   if (typeof Uint8Array.fromBase64 === "function") return Uint8Array.fromBase64(data);
+   const binary = atob(data);
+   const bytes = new Uint8Array(binary.length);
+   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+   return bytes;
+ }
  const results=await Promise.all(${JSON.stringify(fontFaces)}.map(async spec=>{
-  try { const bytes=Uint8Array.from(atob(spec.data),c=>c.charCodeAt(0));
+  try { const bytes=decodeFont(spec.data);
    const face=new FontFace(spec.family,bytes.buffer,{weight:spec.weight,style:spec.style});
    await face.load();document.fonts.add(face);return {family:spec.family,ok:true};
   } catch(error) { return {family:spec.family,ok:false,error:String(error)}; }

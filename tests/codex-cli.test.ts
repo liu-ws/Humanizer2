@@ -19,7 +19,8 @@ function setup(t: any, queue: (id: string, message: string) => Promise<void>) {
     if (name === "bridge_status") return engine.state();
     if (name === "cancel_browser_request") return engine.cancel(args.requestId);
     workspace.verifyBridge(args.sessionId, args.bridgeKey);
-    if (name === "bridge_poll") return engine.poll(args.capabilities);
+    if (name === "bridge_poll")
+      return engine.poll(args.capabilities, args.compact);
     if (name === "bridge_delivery")
       return engine.delivery(args.requestId, args.status, args.error);
     throw Error(name);

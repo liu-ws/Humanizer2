@@ -150,7 +150,11 @@ async function poll() {
   polling = true;
   try {
     const args = { sessionId: binding.sessionId, bridgeKey: binding.bridgeKey };
-    const s = await tool("bridge_poll", { ...args, capabilities });
+    const s = await tool("bridge_poll", {
+      ...args,
+      capabilities,
+      compact: true,
+    });
     if (s.next) {
       const r = s.next;
       try {
@@ -188,7 +192,7 @@ async function initialize() {
   initializing = true;
   try {
     const r = await rpc("ui/initialize", {
-      appInfo: { name: "humanizer2-workbench", version: "0.1.2" },
+      appInfo: { name: "humanizer2-workbench", version: "0.1.3" },
       appCapabilities: {},
       protocolVersion: "2026-01-26",
     });

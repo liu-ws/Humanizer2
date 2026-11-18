@@ -27,7 +27,7 @@ const startupDocumentSchema = schema({
   genre: { type: "string", maxLength: 120 },
   writingMode: { enum: ["general", "academic"] },
 });
-export const resourceUri = "ui://humanizer2/workbench-v0.1.2.html";
+export const resourceUri = "ui://humanizer2/workbench-v0.1.3.html";
 export const toolDefinitions = [
   {
     name: "workbench_api",
@@ -81,7 +81,12 @@ export const toolDefinitions = [
     name: "bridge_poll",
     description: "UI heartbeat; claim one pending request.",
     inputSchema: schema(
-      { sessionId: str, bridgeKey: str, capabilities: { type: "object" } },
+      {
+        sessionId: str,
+        bridgeKey: str,
+        capabilities: { type: "object" },
+        compact: { type: "boolean" },
+      },
       ["sessionId", "bridgeKey"],
     ),
     _meta: { ui: { visibility: ["app"] } },

@@ -57,7 +57,9 @@ function tool(name: string, args: any = {}) {
       workspace.verifyBridge(args.sessionId, args.bridgeKey);
       if (workspace.isDisconnected(args.sessionId))
         return { next: null, disconnected: true };
-      return workspace.engine(args.sessionId).poll(args.capabilities);
+      return workspace
+        .engine(args.sessionId)
+        .poll(args.capabilities, args.compact === true);
     case "bridge_delivery":
       workspace.verifyBridge(args.sessionId, args.bridgeKey);
       return {
@@ -164,7 +166,7 @@ const server = createServer(async (req, res) => {
       res.end(
         JSON.stringify({
           protocol: PROTOCOL,
-          version: "0.1.2",
+          version: "0.1.3",
           pid: process.pid,
         }),
       );
@@ -211,15 +213,7 @@ const server = createServer(async (req, res) => {
       data = {
         ...engine.state(),
         sessions: workspace.sessions(),
-        history: store
-          .orderedDocuments()
-          .map((d) => ({ id: d.id, name: d.name, stage: d.stage })),
-        documents: store.openDocuments().map((d) => ({
-          id: d.id,
-          name: d.name,
-          stage: d.stage,
-          revision: d.revision,
-        })),
+        ...store.documentLists(),
         experiences: store.experiences(),
       };
     else if (path === "/preferences/sync" && req.method === "POST")

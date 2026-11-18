@@ -50,6 +50,9 @@ export type Request = {
   error?: string;
   applied?: boolean;
 };
+// The relay only needs pending work and syncs that can block a later sync.
+const bridgeRequestsFilter = `json_extract(value, '$.status') IN ('queued', 'dispatching')
+  OR (json_extract(value, '$.kind') = 'sync' AND json_extract(value, '$.status') IN ('sent', 'uncertain'))`;
 export class Store {
   db: DatabaseSync;
   shared = false;
@@ -60,7 +63,11 @@ export class Store {
  CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS documents(id TEXT PRIMARY KEY,value TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS experiences(id TEXT PRIMARY KEY,value TEXT NOT NULL);
- CREATE TABLE IF NOT EXISTS requests(id TEXT PRIMARY KEY,value TEXT NOT NULL);`);
+ CREATE TABLE IF NOT EXISTS requests(id TEXT PRIMARY KEY,value TEXT NOT NULL);
+ CREATE INDEX IF NOT EXISTS requests_bridge ON requests(id) WHERE ${bridgeRequestsFilter};
+ CREATE INDEX IF NOT EXISTS documents_summary ON documents(
+   id, json_extract(value, '$.name'), json_extract(value, '$.stage'), json_extract(value, '$.revision')
+ );`);
     if (sharedPath) {
       this.db.prepare("ATTACH DATABASE ? AS shared").run(sharedPath);
       this.db.exec(
@@ -84,6 +91,15 @@ export class Store {
       .prepare(`SELECT value FROM ${this.table(table)}`)
       .all()
       .map((x: any) => JSON.parse(x.value));
+  }
+  bridgeRequests(): Request[] {
+    return this.db
+      .prepare(`
+        SELECT value FROM requests INDEXED BY requests_bridge
+        WHERE ${bridgeRequestsFilter} ORDER BY rowid
+      `)
+      .all()
+      .map((row: any) => JSON.parse(row.value));
   }
   get<T>(table: string, id: string): T {
     const row: any = this.db
@@ -178,6 +194,33 @@ export class Store {
   document(id: string) {
     const d = this.get<Document>("documents", id);
     return d;
+  }
+  documentName(id: string): string {
+    const row = this.db
+      .prepare(`
+        SELECT json_extract(value, '$.name') AS name
+        FROM documents INDEXED BY documents_summary WHERE id=?
+      `)
+      .get(id);
+    if (!row) throw Error("记录不存在");
+    return row.name as string;
+  }
+  documentLists() {
+    type Summary = Pick<Document, "id" | "name" | "stage" | "revision">;
+    const rows = this.db.prepare(`
+      SELECT d.id, json_extract(d.value, '$.name') AS name,
+        json_extract(d.value, '$.stage') AS stage, json_extract(d.value, '$.revision') AS revision,
+        m.value IS 'true' AS closed
+      FROM documents AS d INDEXED BY documents_summary
+      LEFT JOIN meta AS m ON m.key = 'closed:' || d.id ORDER BY d.rowid
+    `).all() as (Summary & { closed: number })[];
+    const documents = ordered(rows, this.meta("document-order"));
+    return {
+      history: documents.map(({ id, name, stage }) => ({ id, name, stage })),
+      documents: documents
+        .filter((d) => !d.closed)
+        .map(({ closed, ...d }) => d),
+    };
   }
   polished(d: Document) {
     return renderPolished(d);

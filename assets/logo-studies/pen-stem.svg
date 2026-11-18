@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title id="title">Humanizer² — 握笔</title>
+  <rect width="128" height="128" rx="28" fill="#422638"/>
+  <g transform="rotate(17 39 63)" fill="#FFF0D9">
+    <path d="M33 22 Q33 17 38 17 H40 Q45 17 45 22 V77 H33 Z"/>
+    <path d="M45 20.5 Q51 21 50.7 27.5 L49.2 43 Q48.8 46 46.3 47 L47.1 28 Q47.4 25 45 25" />
+    <path fill="#FFA77E" d="M33.5 79 H44.5 Q44 88 47 91 L39.7 107 V94.5 A2 2 0 1 0 38.3 94.5 V107 L31 91 Q34 85.5 33.5 79Z"/>
+  </g>
+  <path d="M33 61 C38 59 42 55 47 51 L55 48 Q60 45 65 47 L72 51 Q78 54 77 63 L75 82 Q74 93 80 93 Q84 93 90 87 C88 95 81 102 71 102 Q60 102 59 91 L59 79 Q59 73 53 70 Q50 68 45 71 L40 74 Q35 77 32 74 Q29 71 33 67 L42 60 L37 63 Q32 67 30 65 Q28 62 33 61Z" fill="#FFF0D9" stroke="#422638" stroke-width="2.1" stroke-linejoin="round"/>
+  <path d="M32 67 Q37 68 42 65 L53 58 Q57 55 61 57 M49 69 Q54 65 58 65 Q63 67 65 73" fill="none" stroke="#422638" stroke-width="2.2" stroke-linecap="round"/>
+  <path fill="#FFA77E" d="M80 32 C83 26 89 22 96 22 C103 22 107 26 106 31 C105 36 100 40 93 44 L90 46 H104 L102 52 H78 L80 47 C88 41 98 35 99 31 C100 28 98 27 95 27 C91 27 87 30 84 34 Z"/>
+</svg>

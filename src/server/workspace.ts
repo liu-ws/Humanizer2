@@ -111,7 +111,7 @@ export class Workspace {
       .filter((s: any) => !this.isDisconnected(s.id))
       .map((s: any) => ({
         ...s,
-        connected: this.engines.get(s.id)?.state().bridge.connected || false,
+        connected: this.engines.get(s.id)?.bridgeStatus().connected || false,
       }));
   }
   isDisconnected(id: string) {

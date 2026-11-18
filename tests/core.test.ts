@@ -77,6 +77,32 @@ test("pause and reconnect claim queued questions exactly once; duplicate submit 
   assert.equal(f.engine.state().requests.length, 1);
   assert.throws(() => f.engine.submit({ ...body, question: "other" }));
 });
+test("compact relay polls keep queued order and skip syncs awaiting delivery or a reply", (t) => {
+  const { store, engine } = fixture(t);
+  const doc = store.import("draft.md", "first", "md");
+  const sync = () =>
+    engine.submit({
+      id: randomUUID(),
+      kind: "sync",
+      question: "sync",
+      documentId: doc.id,
+      unitIds: [doc.units[0].id],
+      revision: 0,
+    });
+  const first = sync();
+  const second = sync();
+  const ask = engine.submit({ id: randomUUID(), question: "ask" });
+  const poll = () => engine.poll(undefined, true);
+  assert.equal(poll().next?.id, first.id);
+  assert.equal(poll().next?.id, ask.id);
+  for (const status of ["sent", "uncertain"]) {
+    engine.delivery(first.id, status);
+    assert.deepEqual(poll(), { next: null });
+  }
+  engine.cancel(first.id);
+  assert.equal(poll().next?.id, second.id);
+  assert.equal(engine.state().requests.length, 3);
+});
 test("new context includes both full documents and current language rules, not only the selected unit", (t) => {
   const f = fixture(t);
   const d = f.store.import("a.md", "中文正文。\n\nOther paragraph.", "md");

@@ -65,6 +65,7 @@ export class CodexCliAdapter implements HostAdapter {
       const polled = await this.forward("bridge_poll", {
         sessionId: this.sessionId,
         bridgeKey: this.bridgeKey,
+        compact: true,
         capabilities: {
           host: this.host,
           transport: "codex-queue",

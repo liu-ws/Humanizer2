@@ -33,22 +33,25 @@ export class Engine {
   state() {
     return {
       threadId: this.store.meta("threadId") || null,
-      bridge: {
-        connected: !this.paused && Date.now() - this.lastSeen < 15000,
-        lastSeen: this.lastSeen,
-        paused: this.paused,
-        capabilities: this.capabilities,
-      },
+      bridge: this.bridgeStatus(),
       requests: this.store
         .all<Request>("requests")
         .map((r) => this.notification(r)),
+    };
+  }
+  bridgeStatus() {
+    return {
+      connected: !this.paused && Date.now() - this.lastSeen < 15000,
+      lastSeen: this.lastSeen,
+      paused: this.paused,
+      capabilities: this.capabilities,
     };
   }
   notification(r: Request) {
     return {
       ...r,
       documentName: r.documentId
-        ? this.store.document(r.documentId).name
+        ? this.store.documentName(r.documentId)
         : undefined,
     };
   }
@@ -229,12 +232,13 @@ export class Engine {
     return { queued: [r.id] };
   }
 
-  poll(capabilities?: any) {
+  poll(capabilities?: any, compact = false) {
     this.lastSeen = Date.now();
     if (capabilities) this.capabilities = capabilities;
     return this.store.transaction(() => {
       // A relay may exit after claiming but before acknowledging delivery.
-      for (const r of this.store.all<Request>("requests")) {
+      const requests = this.store.bridgeRequests();
+      for (const r of requests) {
         if (
           r.status === "dispatching" &&
           Date.now() - (r.dispatchedAt || 0) > 60000
@@ -245,31 +249,27 @@ export class Engine {
         }
       }
       let next: Request | undefined;
-      if (!this.paused)
-        next = this.store
-          .all<Request>("requests")
-          .find(
-            (r) =>
-              r.status === "queued" &&
-              (!["sync"].includes(r.kind) ||
-                !this.store
-                  .all<Request>("requests")
-                  .some(
-                    (other) =>
-                      other.id !== r.id &&
-                      other.documentId === r.documentId &&
-                      ["sync"].includes(other.kind) &&
-                      ["dispatching", "sent", "uncertain"].includes(
-                        other.status,
-                      ),
-                  )),
-          );
+      if (!this.paused) {
+        const busySyncDocuments = new Set(
+          requests
+            .filter((r) => r.kind === "sync" && r.status !== "queued")
+            .map((r) => r.documentId),
+        );
+        next = requests.find(
+          (r) =>
+            r.status === "queued" &&
+            (r.kind !== "sync" || !busySyncDocuments.has(r.documentId)),
+        );
+      }
       if (next) {
         next.status = "dispatching";
         next.dispatchedAt = Date.now();
         this.store.put("requests", next);
       }
-      return { ...this.state(), next: next ? this.notification(next) : null };
+      const notification = next ? this.notification(next) : null;
+      return compact
+        ? { next: notification }
+        : { ...this.state(), next: notification };
     });
   }
   delivery(id: string, status: string, error?: string) {

@@ -117,7 +117,10 @@ test("browser queue → MCP claim → reply → browser state (protocol-only, no
   const claimed = (await f.tool("bridge_poll")).structuredContent.next;
   assert.equal(claimed.id, id);
   assert.equal(claimed.threadId, threadId);
-  assert.equal((await f.tool("bridge_poll")).structuredContent.next, null);
+  assert.deepEqual(
+    (await f.tool("bridge_poll", { compact: true })).structuredContent,
+    { next: null },
+  );
   await f.tool("bridge_delivery", { requestId: id, status: "sent" });
   const reply = await f.tool("reply_to_browser", {
     requestId: id,
